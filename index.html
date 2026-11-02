@@ -1,0 +1,547 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>クソ7並べ</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#14231f;color:#fff;font-family:system-ui,sans-serif}
+main{max-width:900px;margin:auto;padding:20px}
+h1{text-align:center;font-size:32px;margin:5px}
+button{background:#354c41;color:white;border:1px solid #bca66b;padding:11px 18px;border-radius:9px;cursor:pointer;font-weight:bold}
+button:hover:not(:disabled){background:#536b58}
+button:disabled{opacity:.4;cursor:not-allowed}
+.table{margin-top:20px;padding:16px;background:radial-gradient(#24764d,#10402d);border:7px solid #65472e;border-radius:25px;box-shadow:inset 0 0 0 2px #c09a5d}
+.roulette-launch{text-align:center;margin:12px 0 22px}
+.roulette-instruction{font-weight:bold;font-size:17px;margin-bottom:12px}
+#spinButton{font-size:16px;padding:14px 35px}
+
+/* ルーレット */
+.roulette-overlay{display:none;position:fixed;inset:0;z-index:20;background:#000c;align-items:center;justify-content:center;padding:20px}
+.roulette-dialog{width:min(360px,100%);background:#202d29;border:2px solid #d2b56e;border-radius:20px;padding:25px 15px;display:flex;flex-direction:column;align-items:center;gap:15px;box-shadow:0 10px 40px #0009}
+.wheel-wrap{position:relative;padding-top:12px}
+.pointer{position:absolute;z-index:2;top:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:25px solid #ffe49a;filter:drop-shadow(0 2px 3px #000)}
+.wheel{width:220px;height:220px;border-radius:50%;position:relative;border:7px solid #d6b76c;background:conic-gradient(from 45deg,#bb4242 0deg 90deg,#386b9d 90deg 180deg,#d0a43c 180deg 270deg,#39845b 270deg 360deg);box-shadow:0 5px 18px #0008,inset 0 0 0 2px #fff5}
+.wheel-label{position:absolute;font-size:14px;font-weight:900;text-shadow:0 1px 3px #000}
+.wl-n{top:18px;left:50%;transform:translateX(-50%)}
+.wl-e{right:12px;top:50%;transform:translateY(-50%)}
+.wl-s{bottom:18px;left:50%;transform:translateX(-50%)}
+.wl-w{left:12px;top:50%;transform:translateY(-50%)}
+#rouletteResult{font-weight:bold;color:#ffe5a0;min-height:25px;text-align:center}
+
+/* 座席 */
+.seats{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto auto;gap:8px;margin-bottom:14px}
+.seat{background:#103b29;border:1px solid #ffffff55;border-radius:10px;padding:10px 5px;text-align:center;min-height:75px;display:flex;flex-direction:column;justify-content:center}
+.seat.active{outline:3px solid #ffdf80;background:#315b39}
+.seat[data-seat="0"]{grid-column:2;grid-row:3}
+.seat[data-seat="1"]{grid-column:1;grid-row:2}
+.seat[data-seat="2"]{grid-column:2;grid-row:1}
+.seat[data-seat="3"]{grid-column:3;grid-row:2}
+.seat-name{font-weight:bold}
+.seat-info{font-size:12px;color:#ddd;margin-top:4px;line-height:1.5}
+.turn{text-align:center;font-weight:bold;margin:12px;min-height:24px}
+
+/* 場 */
+.board{display:grid;grid-template-columns:repeat(13,1fr);gap:3px}
+.cell{aspect-ratio:.7;border-radius:4px;background:#0c3929aa;border:1px solid #ffffff30;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:1px;font-size:clamp(10px,2vw,16px);font-weight:bold}
+.cell.played{background:#fff9eb;color:#222}
+.cell.red{color:#c52d3a}
+.cell.seven{border:2px solid #e5c779}
+.cell .rank{font-size:clamp(10px,2vw,16px);line-height:1.1}
+.cell .suit{font-size:clamp(9px,1.7vw,14px);line-height:1.1}
+#status{text-align:center;min-height:25px;margin-top:15px}
+.controls{text-align:center;margin-top:10px}
+
+/* 手札 */
+.hand-panel{background:#202d29;border:1px solid #53655c;border-radius:15px;padding:15px;margin-top:20px}
+.hand-title{font-weight:bold;margin-bottom:12px}
+.hand{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;min-height:0}
+.card{width:53px;height:77px;background:#fffaf0;color:#222;border-radius:8px;border:1px solid #ccc;display:flex;flex-direction:column;justify-content:center;align-items:center;cursor:pointer;box-shadow:0 3px 5px #0005}
+.card.red{color:#c52d3a}
+.card .rank{font-size:21px;font-weight:900}
+.card .suit{font-size:19px}
+.card.legal{outline:3px solid #f5d77d;transform:translateY(-4px)}
+.card:disabled{opacity:.4;cursor:not-allowed}
+.card:hover:not(:disabled){transform:translateY(-6px)}
+.hand-hidden{display:none}
+
+/* リザルト */
+.overlay{display:none;position:fixed;inset:0;background:#000b;align-items:center;justify-content:center;padding:20px;z-index:30}
+.dialog{background:#202d29;border:2px solid #d2b56e;border-radius:18px;padding:25px;text-align:center;width:min(400px,100%)}
+.dialog h2{font-size:28px}
+#resultText{white-space:pre-line;line-height:1.9;font-size:18px}
+
+@media(max-width:600px){
+ main{padding:10px}
+ .table{padding:9px;border-width:5px}
+ .card{width:42px;height:65px}
+ .wheel{width:190px;height:190px}
+ .board{gap:2px}
+ .seat{padding:7px 2px}
+}
+</style>
+</head>
+<body>
+<main>
+<h1>クソ7並べ</h1>
+
+<section class="table">
+ <div class="roulette-launch">
+  <div class="roulette-instruction" id="rouletteInstruction">
+   ルーレットで順番を決めましょう！
+  </div>
+  <button id="spinButton">ルーレットを回す</button>
+ </div>
+
+ <div class="seats" id="seats"></div>
+ <div class="turn" id="turn"></div>
+
+ <div class="board" id="board"></div>
+
+ <div class="controls">
+  <button id="passButton" disabled>パスする</button>
+ </div>
+ <div id="status"></div>
+</section>
+
+<section class="hand-panel" id="handPanel">
+ <div class="hand-title">あなたの手札</div>
+ <div class="hand" id="hand"></div>
+</section>
+</main>
+
+<!-- ルーレット -->
+<div class="roulette-overlay" id="rouletteOverlay">
+ <div class="roulette-dialog">
+  <div class="wheel-wrap">
+   <div class="pointer"></div>
+   <div class="wheel" id="wheel">
+    <span class="wheel-label wl-n">CPU 2</span>
+    <span class="wheel-label wl-e">CPU 3</span>
+    <span class="wheel-label wl-s">YOU</span>
+    <span class="wheel-label wl-w">CPU 1</span>
+   </div>
+  </div>
+  <div id="rouletteResult">抽選中……</div>
+ </div>
+</div>
+
+<!-- リザルト -->
+<div class="overlay" id="resultOverlay">
+ <div class="dialog">
+  <h2 id="resultTitle">最終結果</h2>
+  <p id="resultText"></p>
+  <button onclick="initGame()">もう一度遊ぶ</button>
+ </div>
+</div>
+
+<script>
+const suits=[
+ {id:"S",symbol:"♠",name:"スペード",red:false},
+ {id:"H",symbol:"♥",name:"ハート",red:true},
+ {id:"D",symbol:"♦",name:"ダイヤ",red:true},
+ {id:"C",symbol:"♣",name:"クラブ",red:false}
+];
+
+const players=[
+ {name:"あなた",seat:0,human:true},
+ {name:"CPU 1",seat:1},
+ {name:"CPU 2",seat:2},
+ {name:"CPU 3",seat:3}
+];
+
+const ranks=["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+
+let hands=[];
+let board={};
+let current=-1;
+let passes=[];
+let finished=false;
+let spinning=false;
+let busy=false;
+
+let previousSuitOrder=null;
+
+// タブを閉じるとリセットされる初回プレイ判定
+function readPlayedBefore(){
+ try{
+  return sessionStorage.getItem("kusonana_played_before")==="true";
+ }catch(e){
+  return false;
+ }
+}
+
+function savePlayedBefore(){
+ try{
+  sessionStorage.setItem("kusonana_played_before","true");
+ }catch(e){}
+}
+
+let playedBefore=readPlayedBefore();
+
+// 順位管理
+let out=[];
+let placements=[];
+let disqualified=[];
+
+const $=id=>document.getElementById(id);
+
+function shuffle(array){
+ const a=[...array];
+ for(let i=a.length-1;i>0;i--){
+  const j=Math.floor(Math.random()*(i+1));
+  [a[i],a[j]]=[a[j],a[i]];
+ }
+ return a;
+}
+
+function initGame(){
+ let shuffled;
+
+ do{
+  shuffled=shuffle(["S","H","D","C"]);
+ }while(
+  previousSuitOrder &&
+  shuffled.some((s,i)=>s===previousSuitOrder[i])
+ );
+
+ previousSuitOrder=[...shuffled];
+ players.forEach((p,i)=>p.suit=shuffled[i]);
+
+ hands=players.map(()=>ranks.map((_,i)=>i).filter(i=>i!==6));
+
+ board={
+  S:new Set([6]),
+  H:new Set([6]),
+  D:new Set([6]),
+  C:new Set([6])
+ };
+
+ current=-1;
+ passes=[0,0,0,0];
+ out=[false,false,false,false];
+ placements=[];
+ disqualified=[];
+
+ finished=false;
+ spinning=false;
+ busy=false;
+
+ $("resultOverlay").style.display="none";
+ $("rouletteOverlay").style.display="none";
+ $("wheel").style.transition="none";
+ $("wheel").style.transform="rotate(0deg)";
+ $("spinButton").disabled=false;
+ $("rouletteResult").textContent="抽選中……";
+ $("status").textContent="";
+ $("turn").textContent="";
+
+ // 初回か2回目以降かで案内文を変更
+ $("rouletteInstruction").textContent=
+  playedBefore
+   ?"ルーレットで順位を決めましょう！"
+   :"ルーレットで順番を決めましょう！";
+
+ render();
+}
+
+// ルーレットの停止位置から先攻プレイヤーを判定
+function getWinnerFromAngle(targetAngle){
+ const pointerAngle=(360-targetAngle+360)%360;
+ const colorAngle=(pointerAngle-45+360)%360;
+
+ // 赤：CPU 3
+ // 青：あなた
+ // 黄：CPU 1
+ // 緑：CPU 2
+ if(colorAngle<90)return 3;
+ if(colorAngle<180)return 0;
+ if(colorAngle<270)return 1;
+ return 2;
+}
+
+function spinRoulette(){
+ if(spinning||current!==-1||finished)return;
+
+ spinning=true;
+ $("spinButton").disabled=true;
+ $("rouletteOverlay").style.display="flex";
+ $("rouletteResult").textContent="抽選中……";
+
+ // 停止角度を360度の範囲から完全ランダムに決定
+ const target=Math.random()*360;
+
+ // 実際の停止位置から先攻プレイヤーを判定
+ const winner=getWinnerFromAngle(target);
+
+ const extraTurns=5+Math.floor(Math.random()*3);
+ const wheelRotation=extraTurns*360+target;
+
+ const wheel=$("wheel");
+ wheel.style.transition="none";
+ wheel.style.transform="rotate(0deg)";
+ void wheel.offsetWidth;
+
+ wheel.style.transition="transform 5s cubic-bezier(.08,.72,.08,1)";
+ wheel.style.transform=`rotate(${wheelRotation}deg)`;
+
+ setTimeout(()=>{
+  $("rouletteResult").textContent=
+   players[winner].name+"から時計回りです";
+  current=winner;
+
+  setTimeout(()=>{
+   $("rouletteOverlay").style.display="none";
+   spinning=false;
+
+   updateTurnMessage();
+   render();
+
+   if(!players[current].human){
+    setTimeout(scheduleCPU,800);
+   }
+  },1000);
+ },5100);
+}
+
+function legalCards(player){
+ const suit=players[player].suit;
+
+ return hands[player].filter(rank=>{
+  if(rank===5)return board[suit].has(6);
+  if(rank===7)return board[suit].has(6);
+  if(rank<5)return board[suit].has(rank+1);
+  if(rank>7)return board[suit].has(rank-1);
+  return false;
+ });
+}
+
+function updateTurnMessage(){
+ if(current===0&&!finished&&!out[0]){
+  $("status").textContent="あなたの番です";
+ }else{
+  $("status").textContent="";
+ }
+}
+
+function render(){
+ const started=current>=0;
+ const seats=$("seats");
+ seats.innerHTML="";
+
+ players.forEach((p,i)=>{
+  const div=document.createElement("div");
+
+  div.className="seat"+(i===current&&!finished&&!out[i]?" active":"");
+  div.dataset.seat=p.seat;
+
+  const suit=suits.find(s=>s.id===p.suit);
+
+  let playerInfo="";
+
+  if(started){
+   if(out[i]){
+    playerInfo="あがり！";
+   }else{
+    playerInfo=`
+     ${hands[i].length}枚<br>
+     残りパス：${3-passes[i]}回
+    `;
+   }
+
+   if(playedBefore){
+    playerInfo+=`<br>担当：${suit.symbol}`;
+   }
+  }
+
+  div.innerHTML=`
+   <div class="seat-name">${p.name}</div>
+   ${started?`<div class="seat-info">${playerInfo}</div>`:""}
+  `;
+
+  seats.appendChild(div);
+ });
+
+ $("turn").textContent=
+  !started?"":finished?"ゲーム終了":"現在の手番："+players[current].name;
+
+ const b=$("board");
+ b.innerHTML="";
+
+ suits.forEach(s=>{
+  for(let r=0;r<13;r++){
+   const cell=document.createElement("div");
+   cell.className="cell"+(s.red?" red":"");
+
+   if(r===6)cell.classList.add("seven");
+
+   if(board[s.id].has(r)){
+    cell.classList.add("played");
+    cell.innerHTML=`
+     <span class="rank">${ranks[r]}</span>
+     <span class="suit">${s.symbol}</span>
+    `;
+   }else{
+    cell.textContent="·";
+   }
+
+   b.appendChild(cell);
+  }
+ });
+
+ const hand=$("hand");
+ hand.innerHTML="";
+
+ $("handPanel").style.display=
+  started&&!out[0]?"block":"none";
+
+ if(started&&!out[0]){
+  const suit=suits.find(s=>s.id===players[0].suit);
+  const humanTurn=current===0&&!busy&&!finished;
+
+  [...hands[0]].sort((a,b)=>a-b).forEach(rank=>{
+   const legal=legalCards(0).includes(rank);
+   const btn=document.createElement("button");
+
+   btn.className="card"+(suit.red?" red":"");
+   if(legal&&humanTurn)btn.classList.add("legal");
+
+   btn.disabled=!legal||!humanTurn;
+   btn.innerHTML=`
+    <span class="rank">${ranks[rank]}</span>
+    <span class="suit">${suit.symbol}</span>
+   `;
+
+   btn.onclick=()=>playCard(0,rank);
+   hand.appendChild(btn);
+  });
+ }
+
+ $("passButton").disabled=
+  !started||current!==0||busy||finished||out[0]||passes[0]>=4;
+}
+
+// プレイヤーの順位を確定
+function finishPlayer(player,isDisqualified=false){
+ if(out[player])return;
+
+ out[player]=true;
+
+ if(isDisqualified){
+  disqualified.push(player);
+ }else{
+  placements.push(player);
+ }
+
+ if(placements.length+disqualified.length===4){
+  finishMatch();
+  return;
+ }
+
+ nextTurn();
+}
+
+// 全員の順位が決まったらリザルト表示
+function finishMatch(){
+ finished=true;
+ busy=false;
+ current=-1;
+
+ playedBefore=true;
+ savePlayedBefore();
+
+ $("status").textContent="";
+ $("turn").textContent="ゲーム終了";
+
+ render();
+
+ const ranking=[...placements,...disqualified];
+
+ $("resultTitle").textContent="最終結果";
+
+ $("resultText").textContent=ranking.map((player,index)=>{
+  const suffix=disqualified.includes(player)?"（失格）":"";
+  return `${index+1}位：${players[player].name}${suffix}`;
+ }).join("\n");
+
+ $("resultOverlay").style.display="flex";
+}
+
+function playCard(player,rank){
+ if(finished||busy||out[player]||current!==player)return;
+ if(!hands[player].includes(rank))return;
+ if(!legalCards(player).includes(rank))return;
+
+ const suit=players[player].suit;
+ hands[player]=hands[player].filter(r=>r!==rank);
+ board[suit].add(rank);
+
+ if(hands[player].length===0){
+  finishPlayer(player);
+  return;
+ }
+
+ nextTurn();
+}
+
+function pass(player){
+ if(finished||busy||out[player]||current!==player)return;
+
+ passes[player]++;
+
+ if(passes[player]>=4){
+  finishPlayer(player,true);
+  return;
+ }
+
+ nextTurn();
+}
+
+// 順位確定済みのプレイヤーを飛ばして次の人へ
+function nextTurn(){
+ for(let i=0;i<4;i++){
+  current=(current+1)%4;
+  if(!out[current])break;
+ }
+
+ updateTurnMessage();
+ render();
+
+ if(!finished&&!players[current].human){
+  setTimeout(scheduleCPU,650);
+ }
+}
+
+function scheduleCPU(){
+ if(finished||out[current]||players[current].human)return;
+
+ busy=true;
+ render();
+
+ setTimeout(()=>{
+  if(finished||out[current])return;
+
+  const moves=legalCards(current);
+
+  if(moves.length>0){
+   const randomIndex=Math.floor(Math.random()*moves.length);
+   const selectedCard=moves[randomIndex];
+
+   busy=false;
+   playCard(current,selectedCard);
+  }else{
+   busy=false;
+   pass(current);
+  }
+ },650);
+}
+
+$("spinButton").addEventListener("click",spinRoulette);
+$("passButton").addEventListener("click",()=>pass(0));
+
+initGame();
+</script>
+</body>
+</html>
